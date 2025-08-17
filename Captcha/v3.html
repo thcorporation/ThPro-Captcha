@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    #thpro-captcha-3.0 {
+      width: 300px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    #captcha-answer {
+      width: 100%;
+      height: 30px;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+    
+    #captcha-submit {
+      background-color: #4CAF50;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    
+    #captcha-result {
+      font-weight: bold;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="thpro-captcha-3.0">
+    <span id="captcha-question"></span>
+    <audio id="captcha-audio" controls></audio>
+    <input type="text" id="captcha-answer" />
+    <button id="captcha-submit">Verify</button>
+    <button id="captcha-regenerate">Regenerate</button>
+    <div id="captcha-result"></div>
+  </div>
+  
+  <script>
+    const captchaCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const captchaLength = 6;
+    
+    function generateCaptcha() {
+      const captchaText = [];
+      const captchaAudio = new Audio();
+      
+      for (let i = 0; i < captchaLength; i++) {
+        captchaText.push(captchaCharacters.charAt(Math.floor(Math.random() * captchaCharacters.length)));
+      }
+      
+      const captchaAudioSrc = generateAudio(captchaText.join(''));
+      captchaAudio.src = captchaAudioSrc;
+      document.getElementById("captcha-audio").src = captchaAudioSrc;
+      document.getElementById("captcha-question").innerText = 'Enter the characters you hear:';
+      document.getElementById("captcha-answer").value = '';
+    }
+    
+    function generateAudio(text) {
+      // Simple text-to-speech using SpeechSynthesis API
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.8;
+      
+      const audioBlob = new Blob();
+      const audioURL = URL.createObjectURL(audioBlob);
+      
+      speechSynthesis.speak(utterance);
+      
+      // Return audio URL
+      return audioURL;
+    }
+    
+    function checkAnswer() {
+      const userAnswer = document.getElementById("captcha-answer").value;
+      const captchaText = document.getElementById("captcha-audio").src.split('/').pop().split('.')[0];
+      
+      if (userAnswer.toLowerCase() === captchaText.toLowerCase()) {
+        document.getElementById("captcha-result").innerText = 'Captcha passed!';
+      } else {
+        document.getElementById("captcha-result").innerText = 'Captcha failed!';
+      }
+    }
+    
+    generateCaptcha();
+    
+    document.getElementById("captcha-submit").addEventListener("click", checkAnswer);
+    document.getElementById("captcha-regenerate").addEventListener("click", generateCaptcha);
+  </script>
+</body>
+</html>
+<!-- 3.0 Server-side --!>
+from flask import Flask, render_template_string, request
+import random
+import string
+
+app = Flask(__name__)
+
+# Captcha settings
+CAPTCHA_LENGTH = 6
+CAPTCHA_CHARACTERS = string.ascii_letters + string.digits
+
+# Generate captcha text and audio
+def generate_captcha():
+    captcha_text = ''.join(random.choice(CAPTCHA_CHARACTERS) for _ in range(CAPTCHA_LENGTH))
+    return captcha_text
+
+# HTML template
+template = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    #thpro-captcha-3.0 {
+      width: 300px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    #captcha-answer {
+      width: 100%;
+      height: 30px;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+    
+    #captcha-submit {
+      background-color: #4CAF50;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    
+    #captcha-result {
+      font-weight: bold;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="thpro-captcha-3.0">
+    <span id="captcha-question">Enter the characters:</span>
+    <input type="hidden" id="captcha-text" value="{{ captcha_text }}">
+    <input type="text" id="captcha-answer" />
+    <button id="captcha-submit">Verify</button>
+    <button id="captcha-regenerate">Regenerate</button>
+    <div id="captcha-result"></div>
+  </div>
+  
+  <script>
+    document.getElementById("captcha-submit").addEventListener("click", function() {
+      const captchaText = document.getElementById("captcha-text").value;
+      const userAnswer = document.getElementById("captcha-answer").value;
+      fetch('/verify', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `captcha-text=${captchaText}&captcha-answer=${userAnswer}`
+      })
+      .then(response => response.text())
+      .then(data => document.getElementById("captcha-result").innerText = data);
+    });
+    
+    document.getElementById("captcha-regenerate").addEventListener("click", function() {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>
+'''
+
+# Route for index page
+@app.route('/', methods=['GET'])
+def index():
+    captcha_text = generate_captcha()
+    return render_template_string(template, captcha_text=captcha_text)
+
+# Route for captcha verification
+@app.route('/verify', methods=['POST'])
+def verify_captcha():
+    user_answer = request.form['captcha-answer']
+    captcha_text = request.form['captcha-text']
+    if user_answer.lower() == captcha_text.lower():
+        return 'Captcha passed!'
+    else:
+        return 'Captcha failed!'
+
+if __name__ == '__main__':
+    app.run(debug=True)
