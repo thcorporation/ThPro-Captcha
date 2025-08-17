@@ -1,0 +1,92 @@
+from flask import Flask, render_template_string, request, jsonify
+
+app = Flask(__name__)
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple CAPTCHA with Flask</title>
+    <style>
+        .captcha-box {
+            display: flex;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            margin-top: 50px;
+        }
+        .captcha-checkbox {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .captcha-label {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="captcha-box">
+        <input type="checkbox" id="captchaCheckbox" class="captcha-checkbox">
+        <label for="captchaCheckbox" class="captcha-label">I'm not a robot</label>
+    </div>
+    <button id="captchaSubmit" style="margin-top: 10px;">Submit</button>
+    <p id="captchaResult" style="font-family: Arial, sans-serif;"></p>
+
+    <script>
+        const captchaCheckbox = document.getElementById('captchaCheckbox');
+        const captchaResult = document.getElementById('captchaResult');
+        const captchaSubmit = document.getElementById('captchaSubmit');
+
+        captchaSubmit.addEventListener('click', async () => {
+            if (captchaCheckbox.checked) {
+                // Send the CAPTCHA state to the server for validation
+                try {
+                    const response = await fetch('/validate-captcha', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ captcha: true }),
+                    });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        captchaResult.textContent = "CAPTCHA passed!";
+                        captchaResult.style.color = "green";
+                    } else {
+                        captchaResult.textContent = "CAPTCHA failed. Please try again.";
+                        captchaResult.style.color = "red";
+                        captchaCheckbox.checked = false;
+                    }
+                } catch (error) {
+                    captchaResult.textContent = "Error validating CAPTCHA. Please try again.";
+                    captchaResult.style.color = "red";
+                }
+            } else {
+                captchaResult.textContent = "Please check the CAPTCHA.";
+                captchaResult.style.color = "red";
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    # Serve the HTML content
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/validate-captcha', methods=['POST'])
+def validate_captcha():
+    # Validate the CAPTCHA state from the request
+    data = request.get_json()
+    if data and data.get('captcha'):
+        # Simulate server-side validation logic
+        success = True  # Replace with actual logic if needed
+        return jsonify({'success': success})
+    return jsonify({'success': False}), 400
+
+if __name__ == '__main__':
+    app.run(debug=True)
