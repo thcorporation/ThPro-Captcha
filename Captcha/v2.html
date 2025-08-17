@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple CAPTCHA</title>
+    <style>
+        :root {
+            --captcha-checkbox-size: 24px;
+            --captcha-font-family: Arial, sans-serif;
+            --captcha-font-size: 14px;
+            --captcha-success-color: green;
+            --captcha-failure-color: red;
+        }
+
+        .captcha-box {
+            display: flex;
+            align-items: center;
+            font-family: var(--captcha-font-family);
+            margin-top: 50px;
+        }
+
+        .captcha-checkbox {
+            margin-right: 10px;
+            width: var(--captcha-checkbox-size);
+            height: var(--captcha-checkbox-size);
+            cursor: pointer;
+        }
+
+        .captcha-label {
+            font-size: var(--captcha-font-size);
+        }
+
+        .captcha-result {
+            font-family: var(--captcha-font-family);
+        }
+    </style>
+</head>
+<body>
+    <div class="captcha-box">
+        <input type="checkbox" id="captchaCheckbox" class="captcha-checkbox" aria-label="I am not a robot">
+        <label for="captchaCheckbox" class="captcha-label">I'm not a robot</label>
+    </div>
+    <p id="captchaResult" class="captcha-result" aria-live="polite"></p>
+
+    <script>
+        const captchaCheckbox = document.getElementById('captchaCheckbox');
+        const captchaResult = document.getElementById('captchaResult');
+
+        captchaCheckbox.addEventListener('change', () => {
+            if (captchaCheckbox.checked) {
+                // Simulate backend validation (e.g., via mouse movement detection)
+                const humanDetected = Math.random() > 0.1; // Replace with actual server-side logic
+
+                if (humanDetected) {
+                    captchaResult.textContent = "CAPTCHA passed!";
+                    captchaResult.style.color = "var(--captcha-success-color)";
+                } else {
+                    captchaResult.textContent = "CAPTCHA failed. Please try again.";
+                    captchaResult.style.color = "var(--captcha-failure-color)";
+                    captchaCheckbox.checked = false;
+                }
+            } else {
+                captchaResult.textContent = "";
+            }
+        });
+    </script>
+</body>
+</html>
