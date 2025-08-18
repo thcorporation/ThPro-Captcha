@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Th ProCaptcha v5</title>
+  <style>
+    body {
+      background: transparent;
+      font-family: Arial, sans-serif;
+    }
+    .recaptcha-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.13);
+      width: 350px;
+      margin: 40px auto;
+      padding: 22px 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .recaptcha-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      justify-content: center;
+    }
+    .th-logo {
+      font-weight: bold;
+      font-size: 22px;
+      color: #4285f4;
+      font-family: 'Arial Black', Arial, sans-serif;
+      letter-spacing: 1px;
+      background: linear-gradient(90deg, #4285f4 60%, #34a853 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 1px 1px 2px #e0e0e0;
+    }
+    .recaptcha-checkbox-label {
+      display: flex;
+      align-items: center;
+      font-size: 19px;
+      margin: 18px 0;
+    }
+    .recaptcha-checkbox-text {
+      margin-left: 12px;
+    }
+    .recaptcha-warning {
+      color: #e53935;
+      margin-top: 8px;
+      font-size: 15px;
+      min-height: 18px;
+    }
+    .recaptcha-image-prompt {
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #222;
+    }
+    .recaptcha-img-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 76px);
+      grid-gap: 8px;
+      margin-bottom: 15px;
+    }
+    .recaptcha-img-cell {
+      border: 2px solid #eee;
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .2s;
+      width: 76px;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f5;
+    }
+    .recaptcha-img-cell.selected {
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px #4285f433;
+    }
+    .recaptcha-img-cell img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .recaptcha-submit-btn {
+      background: #4285f4;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 22px;
+      font-size: 15px;
+      cursor: pointer;
+      margin-bottom: 6px;
+      margin-top: 4px;
+      transition: background .2s;
+    }
+    .recaptcha-submit-btn:hover {
+      background: #3367d6;
+    }
+  </style>
+</head>
+<body>
+  <div class="recaptcha-card" id="captcha-card">
+    <div class="recaptcha-header">
+      <span class="th-logo">Th ProCaptcha v5</span>
+    </div>
+    <div id="level1">
+      <label class="recaptcha-checkbox-label">
+        <input type="checkbox" id="captcha-checkbox" disabled>
+        <span class="recaptcha-checkbox-text">I'm not a robot</span>
+      </label>
+      <div id="warning" class="recaptcha-warning"></div>
+    </div>
+    <div id="level2" style="display:none;">
+      <div class="recaptcha-image-prompt">Select all images with a <strong>cat</strong>:</div>
+      <div class="recaptcha-img-grid" id="img-grid"></div>
+      <button id="submit-images" class="recaptcha-submit-btn">Verify</button>
+      <div id="img-warning" class="recaptcha-warning"></div>
+    </div>
+  </div>
+  <script>
+    // --- LEVEL 1: Motion Detection ---
+    let mouseMovements = [];
+    let started = false;
+    const captchaArea = document.getElementById('captcha-card');
+    const captchaCheckbox = document.getElementById('captcha-checkbox');
+    const warning = document.getElementById('warning');
+    const level1 = document.getElementById('level1');
+    const level2 = document.getElementById('level2');
+    const imgGrid = document.getElementById('img-grid');
+    const imgWarning = document.getElementById('img-warning');
+    const submitImagesBtn = document.getElementById('submit-images');
+
+    function resetCaptcha() {
+      mouseMovements = [];
+      started = false;
+      captchaCheckbox.disabled = true;
+      captchaCheckbox.checked = false;
+      warning.style.display = 'none';
+      warning.textContent = '';
+    }
+
+    captchaArea.addEventListener('mouseenter', () => {
+      resetCaptcha();
+      started = true;
+    });
+
+    captchaArea.addEventListener('mousemove', (e) => {
+      if (!started) return;
+      mouseMovements.push({x: e.clientX, y: e.clientY, t: Date.now()});
+    });
+
+    captchaCheckbox.addEventListener('mouseover', () => {
+      if (mouseMovements.length < 2) return;
+      verifyMotion(mouseMovements).then(data => {
+        if (data.success) {
+          captchaCheckbox.disabled = false;
+          warning.style.display = 'none';
+        } else {
+          captchaCheckbox.disabled = true;
+          warning.style.display = 'block';
+          warning.textContent = data.message || 'Suspicious movement detected!';
+        }
+      });
+    });
+
+    captchaArea.addEventListener('mouseleave', resetCaptcha);
+
+    captchaCheckbox.addEventListener('change', function() {
+      if (this.checked) {
+        level1.style.display = 'none';
+        showImageCaptcha();
+      }
+    });
+
+    // --- LEVEL 2: Image Selection ---
+    const IMAGES = [
+      // 1 means cat, 0 means not cat
+      {src: 'https://images.unsplash.com/photo-1518717758536-85ae29035b6d?w=200&q=80', cat: 1},
+      {src: 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?w=200&q=80', cat: 0},
+      {src: 'https://images.unsplash.com/photo-1518715308788-300b8fe43b8d?w=200&q=80', cat: 0},
+      {src: 'https://images.unsplash.com/photo-1518715308788-300b8fe43b8d?w=200&q=80', cat: 0},
+      {src: 'https://images.unsplash.com/photo-1518717758536-85ae29035b6d?w=200&q=80', cat: 1},
+      {src: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=200&q=80', cat: 1},
+      {src: 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?w=200&q=80', cat: 0},
+      {src: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=200&q=80', cat: 1},
+      {src: 'https://images.unsplash.com/photo-1518715308788-300b8fe43b8d?w=200&q=80', cat: 0}
+    ];
+
+    function showImageCaptcha() {
+      level2.style.display = '';
+      imgGrid.innerHTML = '';
+      imgWarning.textContent = '';
+      const shuffled = IMAGES.slice().sort(() => Math.random()-0.5);
+      shuffled.forEach((img, idx) => {
+        const cell = document.createElement('div');
+        cell.className = 'recaptcha-img-cell';
+        cell.dataset.cat = img.cat;
+        cell.dataset.idx = idx;
+        cell.innerHTML = `<img src="${img.src}" alt="captcha image">`;
+        cell.onclick = function() {
+          cell.classList.toggle('selected');
+        };
+        imgGrid.appendChild(cell);
+      });
+    }
+
+    submitImagesBtn.onclick = function() {
+      const cells = imgGrid.querySelectorAll('.recaptcha-img-cell');
+      let ok = true;
+      let selectedCount = 0;
+      cells.forEach(cell => {
+        const isCat = cell.dataset.cat === '1';
+        const selected = cell.classList.contains('selected');
+        if (isCat && !selected) ok = false;
+        if (!isCat && selected) ok = false;
+        if (selected) selectedCount++;
+      });
+      if (!ok) {
+        imgWarning.textContent = "Incorrect selection. Try again!";
+        imgWarning.style.display = 'block';
+        imgWarning.style.color = "#e53935";
+      } else if (selectedCount === 0) {
+        imgWarning.textContent = "Please select all matching images.";
+        imgWarning.style.display = 'block';
+        imgWarning.style.color = "#e53935";
+      } else {
+        imgWarning.textContent = "Verified! Welcome.";
+        imgWarning.style.color = "#43a047";
+        imgWarning.style.display = 'block';
+        submitImagesBtn.disabled = true;
+      }
+    };
+
+    // --- Simulated server-side motion analysis ---
+    function verifyMotion(movements) {
+      return new Promise(resolve => {
+        if (movements.length < 2) {
+          return resolve({success: false, message: 'Not enough movement data.'});
+        }
+        let totalDist = 0, directDist = 0, totalTime = 0, directionChanges = 0;
+        let prevDx = null, prevDy = null;
+        for (let i = 1; i < movements.length; i++) {
+          const dx = movements[i].x - movements[i-1].x;
+          const dy = movements[i].y - movements[i-1].y;
+          totalDist += Math.sqrt(dx*dx + dy*dy);
+          totalTime += movements[i].t - movements[i-1].t;
+          if (prevDx !== null && prevDy !== null) {
+            if ((dx * prevDx < 0) || (dy * prevDy < 0)) directionChanges++;
+          }
+          prevDx = dx; prevDy = dy;
+        }
+        const dx = movements[movements.length-1].x - movements[0].x;
+        const dy = movements[movements.length-1].y - movements[0].y;
+        directDist = Math.sqrt(dx*dx + dy*dy);
+        const linearity = directDist / totalDist;
+        const avgSpeed = totalDist / (totalTime / 1000);
+        const reactionTime = (movements[movements.length-1].t - movements[0].t) / 1000;
+
+        if (linearity > 0.98 && avgSpeed > 1200) {
+          return resolve({success: false, message: 'Too fast and straight. Are you a robot?'});
+        }
+        if (directionChanges < 2) {
+          return resolve({success: false, message: 'Not enough hesitation. Are you a robot?'});
+        }
+        if (reactionTime < 0.5) {
+          return resolve({success: false, message: 'Too quick!'});
+        }
+        return resolve({success: true});
+      });
+    }
+  </script>
+</body>
+</html>
